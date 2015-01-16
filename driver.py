@@ -9,6 +9,7 @@ from trip import Trip
 BORDER_FACTOR =10
 NUM_NEIGHBOURS = 5
 NUMBER_TRIPS = 200
+ROOT_NAME = 'drivers_test/'
 
 class Driver:
     '''
@@ -21,7 +22,7 @@ class Driver:
         self.driver_num = driver_num
         self.trips = []
         for i in range(1,NUMBER_TRIPS+1):
-            filename = 'drivers/' + str(driver_num) + '/' + str(i) + '.csv'
+            filename = ROOT_NAME + str(driver_num) + '/' + str(i) + '.csv'
             trip = Trip(filename)
             trip.comp_parameters()
             self.trips.append(trip)
@@ -65,6 +66,14 @@ class Driver:
         '''
         speed = self.get_aver_speed_list()
         accel = self.get_accel_list()
+
+        ###################
+        aspeed = np.array(speed)
+        aacell = np.array(accel)
+        speed = [i/aspeed.max() for i in speed]
+        accel = [i/aacell.max() for i in accel]
+        ###################
+
         speed_accel = []
         for i in range(len(speed)):
             speed_accel.append([speed[i],accel[i]])

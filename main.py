@@ -5,7 +5,7 @@ import os
 
 import pandas as pd
 
-from driver import Driver
+from driver import Driver, ROOT_NAME
 
 def write_results():
     '''
@@ -13,7 +13,7 @@ def write_results():
     '''
     driver_trip = []
     prob = []
-    dir_list = os.listdir('drivers/')
+    dir_list = os.listdir(ROOT_NAME)
     for dir in dir_list:
         driver = Driver(int(dir))
         affil_list = driver.build_affiliation_list()
