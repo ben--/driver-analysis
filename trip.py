@@ -1,7 +1,4 @@
-#2015-01-06
 import math
-
-import pandas as pd
 
 ACCELERATION_TIME = 5
 SPEED_FACTOR = 3.6                 # convert m/s to km/h
@@ -63,12 +60,21 @@ class Trip:
         '''
         self.comp_angle_delta()
         self.comp_speed()
+        # compute length of trip
+        self.features['length'] = float(len(self.speed))
+
         # compute maximum speed
-        self.features['max_speed'] = max(self.speed)
+        self.features['max_speed'] = float(max(self.speed))
+
+        # compute average speed
+        self.features['average_speed'] = float(sum(self.speed)/len(self.speed))
+
+        # compute initial acceleration
+        self.features['init_acceleration'] = float(self.speed[1])
 
         # compute maximum product of direction change angle and speed
         speed_angle_prod = [self.speed[i]*self.fi[i] for i in range(len(self.fi))]
-        self.features['max_speed_angle_product'] = max(speed_angle_prod)
+        self.features['max_speed_angle_product'] = float(max(speed_angle_prod))
 
     def get_features(self, keys):
         features = []
