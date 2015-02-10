@@ -2,61 +2,64 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+from sklearn import preprocessing
+from sklearn.covariance import EllipticEnvelope
+from sklearn.svm import OneClassSVM
 from sklearn.neighbors import NearestNeighbors
 
 from trip import Trip
 
-BORDER_FACTOR =10
-NUM_NEIGHBOURS = 5
+BORDER_FACTOR = 5
+NUM_NEIGHBOURS = 30
 NUMBER_TRIPS = 200
-ROOT_NAME = 'drivers_test/'
+ROOT_NAME = 'E:/Programming/Python/Kaggle/Driver_Telematics_Analysis/Data_Drivers/npy'
 
 class Driver:
     '''
     Describes one driver with trips.
     '''
-    def __init__(self, driver_num):
+    def __init__(self, filename, keys):
         '''
-        Initializes driver with 200 trips with calculated parameters.
+        Initializes driver with features of 200 trips.
         '''
-        self.driver_num = driver_num
-        self.trips = []
-        for i in range(1,NUMBER_TRIPS+1):
-            filename = ROOT_NAME + str(driver_num) + '/' + str(i) + '.csv'
-            trip = Trip(filename)
-            trip.comp_parameters()
-            self.trips.append(trip)
-            # Creates lists with parameters of trip
-            self.aver_speed_list = []
-            self.accel_list = []
-            self.length_list = []
-            self.time_list = []
-            for trip in self.trips:
-                self.aver_speed_list.append(trip.get_average_speed())
-                self.accel_list.append(trip.get_acceleration())
-                self.length_list.append(trip.get_trip_length())
-                self.time_list.append(trip.get_trip_time())
+        npy_file = '%s/%d.npy' %(ROOT_NAME, filename)
+        load_data = np.load(npy_file)
+        self.drive_data = []
+        for i in range(len(load_data)):
+            trip = Trip(load_data[i])
+            trip.comp_features()
+            trip_features = trip.get_features(keys)
+            self.drive_data.append(trip_features)
 
-    def add_trip(self, filename):
+    def get_drive_data(self):
+        return self.drive_data
+
+    def find_outliers(self):
         '''
-        Add trip to trip list of driver.
-        Filename: csv file with trip data.
+
         '''
-        trip = Trip(filename)
-        trip.comp_parameters()
-        self.trips.append(trip)
+        features = np.array(self.drive_data)
+        min_max_scaler = preprocessing.MinMaxScaler()
+        samples = min_max_scaler.fit_transform(features)
+        # build and train classifier
+        cls = EllipticEnvelope(support_fraction=0.5, contamination=0.025)
+        cls.fit(samples)
+        self.predicts = cls.predict(samples)
+        return self.predicts
 
-    def get_aver_speed_list(self):
-        return self.aver_speed_list
-
-    def get_accel_list(self):
-        return self.accel_list
-
-    def get_length_list(self):
-        return self.length_list
-
-    def get_time_list(self):
-        return self.time_list
+    def build_affiliation_list(self):
+        '''
+        Builds list of affiliation of trips to driver.
+        List contains '1' if trip belongs to drive and '0' in other case.
+        '''
+        affil_list = []
+        self.find_outliers()
+        for i in range(len(self.predicts)):
+            if self.predicts[i] == 1:
+                affil_list.append(1)
+            else:
+                affil_list.append(0)
+        return affil_list
 
     def comp_reach_dist(self):
         '''
@@ -64,29 +67,18 @@ class Driver:
         Uses only average speed and acceleration data.
         num_neigh: number of nearest neighbours including object itself.
         '''
-        speed = self.get_aver_speed_list()
-        accel = self.get_accel_list()
-
-        ###################
-        aspeed = np.array(speed)
-        aacell = np.array(accel)
-        speed = [i/aspeed.max() for i in speed]
-        accel = [i/aacell.max() for i in accel]
-        ###################
-
-        speed_accel = []
-        for i in range(len(speed)):
-            speed_accel.append([speed[i],accel[i]])
-        samples = np.array(speed_accel)
+        features = np.array(self.drive_data)
+        min_max_scaler = preprocessing.MinMaxScaler()
+        samples = min_max_scaler.fit_transform(features)
         neigh = NearestNeighbors(n_neighbors=NUM_NEIGHBOURS)
         neigh.fit(samples)
         reach_dist_list = []
-        for i in range(len(speed)):
+        for i in range(len(features)):
             dist, ind = neigh.kneighbors(samples[i])
             reach_dist_list.append(sum(dist[0])/(len(dist[0])-1))
         return reach_dist_list
 
-    def build_affiliation_list(self):
+    def build_affiliation_list1(self):
         '''
         Builds list of affiliation of trips to driver.
         List contains '1' if trip belongs to drive and '0' in other case.
@@ -102,36 +94,27 @@ class Driver:
                 affiliation_list.append(1)
         return affiliation_list
 
-
-    def plot_parameters(self):
+    def plot_data(self):
         '''
-        Builds plot with four parameters: average speed, acceleration speed,
-        trip length, trip duration.
+
         '''
-        plt.figure()
-        plt.subplot(221)
-        speed_list = self.get_aver_speed_list()
-        accel_list = self.get_accel_list()
-        plt.plot(speed_list,accel_list, 'ro')
-        plt.xlabel('Speed')
-        plt.ylabel('Acceleration')
-
-        plt.subplot(222)
-        length_list = self.get_length_list()
-        time_list = self.get_time_list()
-        plt.plot(length_list,time_list, 'kx')
-        plt.xlabel('Length')
-        plt.ylabel('Time')
-
-        plt.subplot(212)
-        reach_dist = self.comp_reach_dist()
-        plt.plot(reach_dist)
-        ###################
-        average = np.mean(np.array(reach_dist))
-        x = range(len(reach_dist))
-        y = [BORDER_FACTOR*average]*len(reach_dist)
-        plt.plot(x,y, color='r')
-        ###################
+        affil_list = self.build_affiliation_list()
+        inliers = []
+        outliers = []
+        for i in range(len(affil_list)):
+            if affil_list[i] == 1:
+                inliers.append(self.drive_data[i])
+            else:
+                outliers.append(self.drive_data[i])
+        ins = [[],[]]
+        outs = [[],[]]
+        for i in range(len(inliers)):
+            ins[0].append(inliers[i][0])
+            ins[1].append(inliers[i][1])
+        for i in range(len(outliers)):
+            outs[0].append(outliers[i][0])
+            outs[1].append(outliers[i][1])
+        plt.plot(ins[0],ins[1],'ro')
+        plt.plot(outs[0],outs[1],'ko')
+        plt.grid(True)
         plt.show()
-
-

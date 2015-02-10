@@ -4,64 +4,74 @@ import math
 import pandas as pd
 
 ACCELERATION_TIME = 5
-SPEED_CONSTANT = 3.6                 # convert m/s to km/h
+SPEED_FACTOR = 3.6                 # convert m/s to km/h
 
 class Trip:
     '''
     Class describes one trip of one driver.
     '''
-    def __init__(self, filename):
+    def __init__(self, data):
         '''
-        Class is initialized with Pandas Data Frame received from .csv file.
+        Initialize with initial coordinates of points in format:
+        [[x0,x1,x2,...,x(n-1)],[y0,y1,y2,...,y(n-1)]
         '''
-        self.coordinate_list = pd.read_csv(filename)
+        self.coords = data
+        self.features = {}
 
-    def comp_length(self, start, stop):
+    def comp_angle_delta(self):
         '''
-        Returns length between two points appointed in seconds.
+        Compute list of direction angles of each part of trajectory (momentary angle delta).
         '''
-        x = self.coordinate_list['x']
-        y = self.coordinate_list['y']
-        length = 0
-        for i in range(start, stop):            ####### must be (stop+1) ???
-            x1 = float(x[i-1])
-            x2 = float(x[i])
-            y1 = float(y[i-1])
-            y2 = float(y[i])
-            segment = math.sqrt((y2-y1)**2+(x2-x1)**2)
-            length += segment
-        return length
+        self.fi = [0,0,]
+        for i in range(2,len(self.coords[0])):
+            # compute angle between two direction via three sides of triangle
+            y3 = self.coords[1][i]
+            x3 = self.coords[0][i]
+            y2 = self.coords[1][i-1]
+            x2 = self.coords[0][i-1]
+            y1 = self.coords[1][i-2]
+            x1 = self.coords[0][i-2]
+            a = math.hypot((x3-x1),(y3-y1))
+            b = math.hypot((x3-x2),(y3-y2))
+            c = math.hypot((x2-x1),(y2-y1))
+            try:
+                angle = (math.pi - math.acos((c*c+b*b-a*a)/(2*c*b)))*(180/math.pi)
+            except:
+                angle = 0
+            self.fi.append(angle)
+        self.fi[0] = self.fi[1]
+        return self.fi
 
-    def comp_parameters(self):
+    def comp_speed(self):
         '''
-        Computes parameters: acceleration, average speed, trip time, trip length.
+        Compute list of speed in every point of path (momentary speed)
         '''
+        self.speed = [0]
+        for i in range(1,len(self.coords[0])):
+            y2 = self.coords[1][i]
+            x2 = self.coords[0][i]
+            y1 = self.coords[1][i-1]
+            x1 = self.coords[0][i-1]
+            moment_speed = (math.hypot((y2-y1),(x2-x1)))*SPEED_FACTOR
+            self.speed.append(moment_speed)
+        return self.speed
 
-        # compute trip time
-        self.trip_time = len(self.coordinate_list)
+    def comp_features(self):
+        '''
+        Computes dictionary with parameters: maximum speed and maximum product of
+        direction change angle and speed at this moment.
+        '''
+        self.comp_angle_delta()
+        self.comp_speed()
+        # compute maximum speed
+        self.features['max_speed'] = max(self.speed)
 
-        # compute trip length
-        self.trip_length = self.comp_length(1,self.trip_time)
+        # compute maximum product of direction change angle and speed
+        speed_angle_prod = [self.speed[i]*self.fi[i] for i in range(len(self.fi))]
+        self.features['max_speed_angle_product'] = max(speed_angle_prod)
 
-        # compute acceleration speed
-        self.acceleration = ((self.comp_length(1,ACCELERATION_TIME-1))/ACCELERATION_TIME)/ACCELERATION_TIME
-
-        # compute average speed of trip without taking acceleration time
-        period = self.trip_time - ACCELERATION_TIME
-        length = self.comp_length(ACCELERATION_TIME, self.trip_time)
-        self.average_speed = (length/period)*SPEED_CONSTANT
-
-    def get_coordinate_list(self):
-        return self.coordinate_list
-
-    def get_trip_time(self):
-        return self.trip_time
-
-    def get_trip_length(self):
-        return self.trip_length
-
-    def get_acceleration(self):
-        return self.acceleration
-
-    def get_average_speed(self):
-        return self.average_speed
+    def get_features(self, keys):
+        features = []
+        for key in keys:
+            features.append(self.features[key])
+        return features

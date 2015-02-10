@@ -14,8 +14,11 @@ def write_results():
     driver_trip = []
     prob = []
     dir_list = os.listdir(ROOT_NAME)
+    dir_list = [int(item[:-4]) for item in dir_list]
+    dir_list.sort()
     for dir in dir_list:
-        driver = Driver(int(dir))
+        print(dir)
+        driver = Driver(dir, ('max_speed', 'max_speed_angle_product'))
         affil_list = driver.build_affiliation_list()
         for i in range(len(affil_list)):
             d_t = '%s_%d'%(dir,(i+1))
